@@ -1,22 +1,4 @@
-# Input & Validate:
-# Obtain the IP address. DONE
-# Obtain the number of desired subnets (num_subnets). DONE
-# Validate if the IP address is either an IPv4 or IPv6. DONE
-
-# Determine Initial Subnet Mask: DONE
-# Determine the default subnet mask for the given class of IP address.
-# Class A: 1.0.0.0 to 126.0.0.0 -> Default subnet mask: 255.0.0.0
-# Class B: 128.0.0.0 to 191.0.0.0 -> Default subnet mask: 255.255.0.0
-# Class C: 192.0.0.0 to 223.0.0.0 -> Default subnet mask: 255.255.255.0
-# (This assumes we're not considering the newer CIDR format)
-
-# Calculate New Subnet Mask: DONE
-# Convert the default subnet mask to binary. DONE
-# Add bits to the subnet mask in the host portion (rightmost part) until you have enough subnets. Remember, for each bit you add, you double the number of subnets: 1 bit = 2 subnets, 2 bits = 4 subnets, 3 bits = 8 subnets, and so on. DONE
-# Convert the new binary subnet mask back to decimal. DONE
-
-# Generate Subnets: TODO
-# Starting with the network address (the given IP address, assuming it's the beginning of a subnet), increment by the subnet size (which is based on the new subnet mask) to get each new subnet.
+# Starting with the network address (the given IP address, assuming it's the beginning of a subnet), increment by the subnet size (which is based on the new subnet mask) to get each new subnet. TODO
 
 # Output: TODO
 # Return the list of calculated subnets.
@@ -26,6 +8,10 @@
 # If you're working with CIDR notation (e.g., /24 for a subnet mask of 255.255.255.0), you'd adjust the CIDR prefix length instead of adjusting a default subnet mask.
 # This algorithm does not consider the practical limitations of subnetting, such as the reservations for network and broadcast addresses.
 # For a real-world application, ensure that you're handling edge cases and are accounting for the latest IP addressing practices and standards.
+
+# This address, 192.168.1.0, is the network address for the subnet. Any IP address within this subnet will have the same result when ANDed with the subnet mask, which is how devices determine if another IP is within the same local network or if it's external and requires routing.
+
+# This process is fundamental to IP routing. When a device needs to communicate with another IP address, it first determines if the target IP is on the same network or a different one by applying this process. If it's on the same network, it communicates directly; if it's on a different network, it forwards the data to the router.
 
 import argparse
 import textwrap
@@ -58,28 +44,26 @@ def calculate_new_mask(subnet_class, nets):
     return mask
 
 
-def convert_mask_to_decimal(mask):
-    octet_1 = mask[:8]
-    octet_2 = mask[8:16]
-    octet_3 = mask[16:24]
-    octet_4 = mask[24:]
+def convert_new_mask_to_decimal(mask):
+    octet_1 = int(mask[:8], 2)
+    octet_2 = int(mask[8:16], 2)
+    octet_3 = int(mask[16:24], 2)
+    octet_4 = int(mask[24:], 2)
 
-    return f"{int(octet_1, 2)}.{int(octet_2, 2)}.{int(octet_3, 2)}.{int(octet_4, 2)}"
+    return f"{octet_1}.{octet_2}.{octet_3}.{octet_4}"
 
 
 def print_results(new_subnet):
-    print(f"New subnet mask: {convert_mask_to_decimal(new_subnet)}")
+    print(f"New subnet mask: {convert_new_mask_to_decimal(new_subnet)}")
 
 
 def main():
     ip_addr = ipaddress.ip_address(args.ipAddress)
-    binary_address = "{:#b}".format(ip_addr)[2:]
     default_subnet_mask = args.default_mask
     num_subnets = args.subnets or 1
 
-    subnet_class = determine_subnet_class(default_subnet_mask)
-
     if args.ipAddress and ip_addr.is_private:
+        subnet_class = determine_subnet_class(default_subnet_mask)
         if ip_addr.version == 4:
             subnet_mask = calculate_new_mask(subnet_class, num_subnets)
             print_results(subnet_mask)
