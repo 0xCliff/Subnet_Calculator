@@ -37,7 +37,7 @@ Before you begin, ensure you have met the following requirements:
 
 ## Usage
 
-- Run the command: `python Subnet_Calculator.py -h`
+- Run the command: `python subnet_calc.py -h`
 - It's really not that complicated
 
 ## License
