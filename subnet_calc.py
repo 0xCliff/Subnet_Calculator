@@ -1,33 +1,44 @@
-# Starting with the network address (the given IP address, assuming it's the beginning of a subnet), increment by the subnet size (which is based on the new subnet mask) to get each new subnet. TODO
-
-# Output: TODO
-# Return the list of calculated subnets.
-# Optionally, return the range of valid host addresses for each subnet, as well as the broadcast address for each subnet.
-
-# A few points to consider:
-# If you're working with CIDR notation (e.g., /24 for a subnet mask of 255.255.255.0), you'd adjust the CIDR prefix length instead of adjusting a default subnet mask.
-# This algorithm does not consider the practical limitations of subnetting, such as the reservations for network and broadcast addresses.
-# For a real-world application, ensure that you're handling edge cases and are accounting for the latest IP addressing practices and standards.
-
-# This address, 192.168.1.0, is the network address for the subnet. Any IP address within this subnet will have the same result when ANDed with the subnet mask, which is how devices determine if another IP is within the same local network or if it's external and requires routing.
-
-# This process is fundamental to IP routing. When a device needs to communicate with another IP address, it first determines if the target IP is on the same network or a different one by applying this process. If it's on the same network, it communicates directly; if it's on a different network, it forwards the data to the router.
-
 import argparse
 import textwrap
 import ipaddress
 import math
 
+# fmt: off
+CIDR_MAP = {
+    (4, "255"): 32, (4, "254"): 31, (4, "252"): 30, (4, "248"): 29,
+    (4, "240"): 28, (4, "224"): 27, (4, "192"): 26, (4, "128"): 25,
+    (3, "255"): 24, (3, "254"): 23, (3, "252"): 22, (3, "248"): 21,
+    (3, "240"): 20, (3, "224"): 19, (3, "192"): 18, (3, "128"): 17,
+    (2, "255"): 16, (2, "254"): 15, (2, "252"): 14, (2, "248"): 13,
+    (2, "240"): 12, (2, "224"): 11, (2, "192"): 10, (2, "128"): 9,
+    (1, "255"): 8,  (1, "254"): 7,  (1, "252"): 6,  (1, "248"): 5,
+    (1, "240"): 4,  (1, "224"): 3,  (1, "192"): 2,  (1, "128"): 1
+}
+# fmt: on
 
-def determine_subnet_class(subnet):
-    if subnet == "255.0.0.0":
-        return "A"
-    elif subnet == "255.255.0.0":
-        return "B"
-    elif subnet == "255.255.255.0":
-        return "C"
-    else:
-        raise ValueError("The subnet mask is not Valid")
+
+def reverse_CIDR_lookup(cidr):
+    for k, v in CIDR_MAP.items():
+        if cidr == v:
+            return k
+
+
+def get_subnet_CIDR(subnet):
+    if subnet.startswith("/"):
+        return reverse_CIDR_lookup(int(subnet[1:]))
+
+    # Split the subnet and find the last non-zero octet.
+    octets = subnet.split(".")
+    octet_idx, slice_value = None, None
+    for i, octet in enumerate(octets):
+        if octet != "0":
+            octet_idx = i + 1
+            slice_value = octet
+
+    if octet_idx is None:
+        return None
+
+    return (octet_idx, slice_value)
 
 
 def calculate_new_mask(subnet_class, nets):
@@ -53,57 +64,131 @@ def convert_new_mask_to_decimal(mask):
     return f"{octet_1}.{octet_2}.{octet_3}.{octet_4}"
 
 
-def print_results(new_subnet):
-    print(f"New subnet mask: {convert_new_mask_to_decimal(new_subnet)}")
+def make_final_address(ip, res, flag, pos):
+    octets = ip.exploded.split(".")
+    octets[pos - 1] = str(min(res, 255))
+
+    for i in range(pos, len(octets)):
+        if flag in [0, 1]:
+            octets[i] = "0"
+        elif flag in [-1, -2]:
+            octets[i] = "255"
+
+    if flag == 1:
+        octets[-1] = str(int(octets[-1]) + 1)
+    if flag == -2:
+        octets[-1] = str(int(octets[-1]) - 1)
+
+    address = ".".join(octets)
+    return None if address == "255.0.0.0" else address
+
+
+def get_details(ip, cidr, pos, subnet):
+    octets = ip.exploded.split(".")
+    octet = octets[pos - 1]
+    group_size = 256 - subnet
+    step = 0
+
+    while step < int(octet) + 1:
+        step += group_size
+
+    details = {
+        "network_id": make_final_address(ip, step - group_size, 0, pos),
+        "broadcast_id": make_final_address(ip, step - 1, -1, pos),
+        "first_host": make_final_address(ip, step - group_size, 1, pos),
+        "last_host": make_final_address(ip, step - 1, -2, pos),
+        "next_network": make_final_address(ip, step, 0, pos),
+        "num_hosts": "{:,}".format(int(math.pow(2, (32 - cidr)) - 2)),
+        "subnet_mask": f"{ip.exploded}/{cidr} -- {subnet}",
+    }
+
+    print_details(details)
+
+
+def print_details(details):
+    print(
+        textwrap.dedent(
+            f"""
+                \033[92mNetwork ID:                         {details["network_id"]}
+                Broadcast ID:                       {details["broadcast_id"]}
+                First network host:                 {details["first_host"]}
+                Last network host:                  {details["last_host"]}
+                Next network:                       {details["next_network"]}
+                # of usable hosts p/subnet:         {details["num_hosts"]}
+                Subnet mask:                        {details["subnet_mask"]}\033[00m
+            """
+        )
+    )
 
 
 def main():
     ip_addr = ipaddress.ip_address(args.ipAddress)
-    default_subnet_mask = args.default_mask
-    num_subnets = args.subnets or 1
+    subnet_mask = args.mask
+    num_subnets = args.subnets
+    details = args.get_details
+    calc = args.calculate
 
-    if args.ipAddress and ip_addr.is_private:
-        subnet_class = determine_subnet_class(default_subnet_mask)
+    if details:
         if ip_addr.version == 4:
-            subnet_mask = calculate_new_mask(subnet_class, num_subnets)
-            print_results(subnet_mask)
-        else:
-            "{:#X}".format(ip_addr)
-            print(ip_addr.compressed)
+            octet_position, subnet = get_subnet_CIDR(subnet_mask)
+            get_details(
+                ip_addr,
+                CIDR_MAP[get_subnet_CIDR(subnet_mask)],
+                octet_position,
+                int(subnet),
+            )
+
+    if calc:
+        if ip_addr.version == 4:
+            pass
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
+        prog="subnet_calc.py",
         description="Subnet Calculation Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent(
             """Example:
-            \033[92mpython subnet_calc.py\033[00m \033[96m-ip\033[00m 192.168.1.0 \033[96m-dm\033[00m 255.255.255.0 \033[96m-s\033[00m 4                         \033[31m# Calculate 4 subnets for 192.168.1.0\033[00m
-            \033[92mpython subnet_calc.py\033[00m \033[96m--ipAddress\033[00m 10.1.0.0 \033[96m--default-mask\033[00m 255.0.0.0 \033[96m--subnets\033[00m 8      \033[31m# Calculate 8 subnets for 10.1.0.0\033[00m
-            \033[92mpython subnet_calc.py\033[00m \033[96m-ip\033[00m 10.1.0.0 \033[96m--default-mask\033[00m 255.0.0.0 \033[96m-s\033[00m 2                     \033[31m# Calculate 2 subnets for 10.1.0.0\033[00m
+    \033[92mpython subnet_calc.py\033[00m \033[96m-g\033[00m \033[96m-i\033[00m 192.168.1.0 \033[96m-m\033[00m 24                                   \033[31m# get all deatils about network for 192.168.1.0/24\033[00m
+    \033[92mpython subnet_calc.py\033[00m \033[96m-c\033[00m \033[96m--ipAddress\033[00m 10.1.0.0 \033[96m--mask\033[00m 255.0.0.0 \033[96m--subnets\033[00m 8      \033[31m# Calculate 8 subnets for 10.1.0.0\033[00m
+    \033[92mpython subnet_calc.py\033[00m \033[96m-c\033[00m \033[96m-i\033[00m 10.1.0.0 \033[96m--mask\033[00m 255.0.0.0 \033[96m-s\033[00m 2                      \033[31m# Calculate 2 subnets for 10.1.0.0\033[00m
         """
         ),
+        usage="\033[92mpython subnet_calc.py\033[00m \033[96m-g\033[00m \033[96m-i\033[00m 192.168.1.0 \033[96m-m\033[00m 24",
     )
     parser.add_argument(
-        "-ip",
+        "-g",
+        "--get-details",
+        help="Get all network details for given IP and Subnet mask",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-c",
+        "--calculate",
+        help="Calculate network details for given IP and # of subnets needed",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-i",
         "--ipAddress",
-        help="Starting IP address",
+        help="IP address",
         required=True,
-        metavar="IP Address",
+        metavar="\b",
     )
     parser.add_argument(
-        "-dm",
-        "--default-mask",
-        help="Default subnet mask",
-        required=True,
-        metavar="",
+        "-m",
+        "--mask",
+        help="Subnet mask or CIDR",
+        metavar="\b",
     )
     parser.add_argument(
         "-s",
         "--subnets",
         type=int,
         help="Number of subnets required",
-        metavar="",
+        default=1,
+        metavar="\b",
     )
     args = parser.parse_args()
 
