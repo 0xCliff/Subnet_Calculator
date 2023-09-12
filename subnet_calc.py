@@ -150,7 +150,7 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent(
             """Example:
-    \033[92mpython subnet_calc.py\033[00m \033[96m-g\033[00m \033[96m-i\033[00m 192.168.1.0 \033[96m-m\033[00m 24                                   \033[31m# get all deatils about network for 192.168.1.0/24\033[00m
+    \033[92mpython subnet_calc.py\033[00m \033[96m-g\033[00m \033[96m-i\033[00m 192.168.1.0 \033[96m-m\033[00m /24                                   \033[31m# get all deatils about network for 192.168.1.0/24\033[00m
     \033[92mpython subnet_calc.py\033[00m \033[96m-c\033[00m \033[96m--ipAddress\033[00m 10.1.0.0 \033[96m--mask\033[00m 255.0.0.0 \033[96m--subnets\033[00m 8      \033[31m# Calculate 8 subnets for 10.1.0.0\033[00m
     \033[92mpython subnet_calc.py\033[00m \033[96m-c\033[00m \033[96m-i\033[00m 10.1.0.0 \033[96m--mask\033[00m 255.0.0.0 \033[96m-s\033[00m 2                      \033[31m# Calculate 2 subnets for 10.1.0.0\033[00m
         """
